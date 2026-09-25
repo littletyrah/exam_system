@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Student Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h2 id="welcomeMsg">Welcome</h2>
+        <button class="logout-btn" id="logoutBtn">Log Out</button>
+    </div>
+
+    <nav>
+        <a href="#" class="nav-link active" data-section="scheduleSection">My Exam Schedule</a>
+        <a href="#" class="nav-link" data-section="resultsSection">My Results</a>
+        <a href="#" class="nav-link" data-section="qrSection">Exam Slip (QR)</a>
+     <a href="#" class="nav-link" data-section="profileSection">My Profile</a>
+    </nav>
+
+    <div id="scheduleSection" class="content-section">
+        <div id="scheduleContent" class="loading">Loading...</div>
+    </div>
+
+    <div id="resultsSection" class="content-section" style="display:none;">
+        <div id="resultsContent" class="loading">Loading...</div>
+    </div>
+
+      <div id="qrSection" class="content-section" style="display:none;">
+        <p>Select an exam to view its QR slip:</p>
+        <select id="examSelect"></select>
+        <div id="qrContent"></div>
+    </div>
+</div>
+
+
+    <div id="profileSection" class="content-section" style="display:none;">
+        <form id="profileForm">
+            <label for="profileName">Full Name</label>
+            <input type="text" id="profileName" required>
+
+            <label for="profileEmail">Email</label>
+            <input type="email" id="profileEmail" required>
+
+            <button type="submit">Save Changes</button>
+            <p id="profileMsg" class="error-msg"></p>
+        </form>
+    </div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>

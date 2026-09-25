@@ -1,0 +1,174 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #4b6cb7, #182848);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    background: #fff;
+    padding: 40px 35px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 380px;
+}
+
+.login-container h1 {
+    font-size: 24px;
+    color: #182848;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 25px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 5px;
+    margin-top: 12px;
+}
+
+input {
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+input:focus {
+    outline: none;
+    border-color: #4b6cb7;
+}
+
+button {
+    margin-top: 20px;
+    padding: 12px;
+    background: #182848;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #4b6cb7;
+}
+
+button:disabled {
+    background: #999;
+    cursor: not-allowed;
+}
+
+.error-msg {
+    color: #d33;
+    font-size: 13px;
+    margin-top: 12px;
+    min-height: 16px;
+}
+
+.dashboard-container {
+    background: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 700px;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+}
+
+.dashboard-header h2 {
+    color: #182848;
+}
+
+.logout-btn {
+    background: #d33;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.logout-btn:hover {
+    background: #a11;
+}
+
+nav {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+nav a {
+    text-decoration: none;
+    color: #182848;
+    background: #eef1f8;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+nav a.active, nav a:hover {
+    background: #182848;
+    color: #fff;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+th, td {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+th {
+    background: #f5f7fb;
+    color: #333;
+}
+
+.loading, .empty-state {
+    text-align: center;
+    color: #888;
+    padding: 30px 0;
+}
+
+.qr-image {
+    display: block;
+    margin: 15px auto;
+    max-width: 250px;
+}
