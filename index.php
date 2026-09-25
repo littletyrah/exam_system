@@ -355,7 +355,9 @@ $app->get('/examinations', function ($request, $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 // GET single examination
-$app->get('/examinations/{id}', function ($request, $response, $args) {
+
+// Generate QR code for an exam slip (external API integration)
+$app->get('/examinations/{id}/qrcode', function ($request, $response, $args) {
     $pdo = getDbConnection();
     $stmt = $pdo->prepare('SELECT * FROM examinations WHERE exam_id = ?');
     $stmt->execute([$args['id']]);
@@ -366,10 +368,17 @@ $app->get('/examinations/{id}', function ($request, $response, $args) {
         return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
     }
 
-    $response->getBody()->write(json_encode($exam));
+    $qrData = "Exam: {$exam['exam_title']} | Date: {$exam['exam_date']} | Time: {$exam['exam_time']} | Venue: {$exam['venue']}";
+    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($qrData);
+
+    $response->getBody()->write(json_encode([
+        'exam_id' => $exam['exam_id'],
+        'exam_title' => $exam['exam_title'],
+        'qr_code_url' => $qrUrl,
+        'qr_data_encoded' => $qrData
+    ]));
     return $response->withHeader('Content-Type', 'application/json');
 });
-
 // CREATE an examination
 // CREATE an examination
 $app->post('/examinations', function ($request, $response) {
