@@ -8,6 +8,31 @@ use Slim\Factory\AppFactory;
 $app = AppFactory::create();
 $app->setBasePath('/exam-system-api');
 
+
+// Centralized error handling middleware
+$errorMiddleware = $app->addErrorMiddleware(true, true, true);
+$errorMiddleware->setDefaultErrorHandler(function (
+    $request,
+    $exception,
+    $displayErrorDetails,
+    $logErrors,
+    $logErrorDetails
+) use ($app) {
+    $response = $app->getResponseFactory()->createResponse();
+    $statusCode = 500;
+
+    if (method_exists($exception, 'getCode') && $exception->getCode() >= 400 && $exception->getCode() < 600) {
+        $statusCode = $exception->getCode();
+    }
+
+    $payload = [
+        'error' => $exception->getMessage() ?: 'An unexpected error occurred'
+    ];
+
+    $response->getBody()->write(json_encode($payload));
+    return $response->withHeader('Content-Type', 'application/json')->withStatus($statusCode);
+});
+
 // LOGIN - authenticate user and issue JWT
 $app->post('/login', function ($request, $response) {
     $data = json_decode($request->getBody()->getContents(), true);
