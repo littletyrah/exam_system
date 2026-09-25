@@ -291,16 +291,44 @@ $app->delete('/courses/{id}', function ($request, $response, $args) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// GET all examinations
+// GET all examinations (with pagination + filtering)
 $app->get('/examinations', function ($request, $response) {
     $pdo = getDbConnection();
-    $stmt = $pdo->query('SELECT * FROM examinations');
+    $params = $request->getQueryParams();
+
+    $page = isset($params['page']) ? max(1, (int)$params['page']) : 1;
+    $limit = isset($params['limit']) ? max(1, (int)$params['limit']) : 10;
+    $offset = ($page - 1) * $limit;
+
+    $where = [];
+    $bindings = [];
+
+    if (!empty($params['course_id'])) {
+        $where[] = 'course_id = ?';
+        $bindings[] = $params['course_id'];
+    }
+
+    $whereClause = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM examinations $whereClause");
+    $countStmt->execute($bindings);
+    $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    $stmt = $pdo->prepare("SELECT * FROM examinations $whereClause LIMIT $limit OFFSET $offset");
+    $stmt->execute($bindings);
     $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $response->getBody()->write(json_encode($exams));
+    $response->getBody()->write(json_encode([
+        'data' => $exams,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => (int)$total,
+            'total_pages' => ceil($total / $limit)
+        ]
+    ]));
     return $response->withHeader('Content-Type', 'application/json');
 });
-
 // GET single examination
 $app->get('/examinations/{id}', function ($request, $response, $args) {
     $pdo = getDbConnection();
@@ -406,32 +434,48 @@ $app->delete('/examinations/{id}', function ($request, $response, $args) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// GET all results
+// GET all results (with pagination + filtering)
 $app->get('/results', function ($request, $response) {
     $pdo = getDbConnection();
-    $stmt = $pdo->query('SELECT * FROM results');
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $params = $request->getQueryParams();
 
-    $response->getBody()->write(json_encode($results));
-    return $response->withHeader('Content-Type', 'application/json');
-});
+    $page = isset($params['page']) ? max(1, (int)$params['page']) : 1;
+    $limit = isset($params['limit']) ? max(1, (int)$params['limit']) : 10;
+    $offset = ($page - 1) * $limit;
 
-// GET single result
-$app->get('/results/{id}', function ($request, $response, $args) {
-    $pdo = getDbConnection();
-    $stmt = $pdo->prepare('SELECT * FROM results WHERE result_id = ?');
-    $stmt->execute([$args['id']]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $where = [];
+    $bindings = [];
 
-    if (!$result) {
-        $response->getBody()->write(json_encode(['error' => 'Result not found']));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+    if (!empty($params['exam_id'])) {
+        $where[] = 'exam_id = ?';
+        $bindings[] = $params['exam_id'];
+    }
+    if (!empty($params['student_id'])) {
+        $where[] = 'student_id = ?';
+        $bindings[] = $params['student_id'];
     }
 
-    $response->getBody()->write(json_encode($result));
+    $whereClause = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM results $whereClause");
+    $countStmt->execute($bindings);
+    $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    $stmt = $pdo->prepare("SELECT * FROM results $whereClause LIMIT $limit OFFSET $offset");
+    $stmt->execute($bindings);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $response->getBody()->write(json_encode([
+        'data' => $results,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => (int)$total,
+            'total_pages' => ceil($total / $limit)
+        ]
+    ]));
     return $response->withHeader('Content-Type', 'application/json');
 });
-
 // CREATE a result
 // CREATE a result
 $app->post('/results', function ($request, $response) {
