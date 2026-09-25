@@ -79,6 +79,23 @@ async function loadSchedule() {
     }
 }
 
+// Cache of exam_id -> exam_title, built once and reused
+let examLookup = {};
+
+async function buildExamLookup() {
+    try {
+        const data = await apiGet('/examinations?limit=100');
+        if (!data) return;
+
+        const exams = data.data || data;
+        exams.forEach(exam => {
+            examLookup[exam.exam_id] = exam.exam_title;
+        });
+    } catch (err) {
+        // silently fail - results will just show exam IDs as fallback
+    }
+}
+
 // Load results for this student
 async function loadResults() {
     const container = document.getElementById('resultsContent');
@@ -93,10 +110,11 @@ async function loadResults() {
             return;
         }
 
-        let html = '<table><tr><th>Exam ID</th><th>Score</th><th>Grade</th></tr>';
+        let html = '<table><tr><th>Exam</th><th>Score</th><th>Grade</th></tr>';
         results.forEach(r => {
+            const examName = examLookup[r.exam_id] || `Exam #${r.exam_id}`;
             html += `<tr>
-                <td>${r.exam_id}</td>
+                <td>${examName}</td>
                 <td>${r.score}</td>
                 <td>${r.grade || '-'}</td>
             </tr>`;
@@ -107,7 +125,6 @@ async function loadResults() {
         container.innerHTML = '<p class="empty-state">Failed to load results.</p>';
     }
 }
-
 // Load exam list into the QR dropdown
 async function loadExamSelect() {
     const select = document.getElementById('examSelect');
@@ -143,10 +160,14 @@ document.getElementById('examSelect').addEventListener('change', async function 
 });
 
 // Initial load
-loadSchedule();
-loadResults();
-loadExamSelect();
-loadProfile();
+async function init() {
+    await buildExamLookup();
+    loadSchedule();
+    loadResults();
+    loadExamSelect();
+    loadProfile();
+}
+init();
 
 // Load and populate profile form
 function loadProfile() {
