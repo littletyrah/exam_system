@@ -1,11 +1,46 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/db.php';
+require __DIR__ . '/auth.php';
 
 use Slim\Factory\AppFactory;
 
 $app = AppFactory::create();
 $app->setBasePath('/exam-system-api');
+
+// LOGIN - authenticate user and issue JWT
+$app->post('/login', function ($request, $response) {
+    $data = json_decode($request->getBody()->getContents(), true);
+
+    if (empty($data['email']) || empty($data['password'])) {
+        $response->getBody()->write(json_encode(['error' => 'email and password are required']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+
+    $pdo = getDbConnection();
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ?');
+    $stmt->execute([$data['email']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user || !password_verify($data['password'], $user['password'])) {
+        $response->getBody()->write(json_encode(['error' => 'Invalid email or password']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+    }
+
+    $token = generateToken($user);
+
+    $response->getBody()->write(json_encode([
+        'message' => 'Login successful',
+        'token' => $token,
+        'user' => [
+            'user_id' => $user['user_id'],
+            'full_name' => $user['full_name'],
+            'email' => $user['email'],
+            'role' => $user['role']
+        ]
+    ]));
+    return $response->withHeader('Content-Type', 'application/json');
+});
 
 $app->get('/ping', function ($request, $response) {
     $response->getBody()->write(json_encode(['status' => 'ok']));
@@ -38,19 +73,38 @@ $app->get('/users/{id}', function ($request, $response, $args) {
 });
 
 // CREATE a new user
+// CREATE a new user
 $app->post('/users', function ($request, $response) {
     $data = json_decode($request->getBody()->getContents(), true);
 
-    if (empty($data['full_name']) || empty($data['email']) || empty($data['password']) || empty($data['role'])) {
-        $response->getBody()->write(json_encode(['error' => 'full_name, email, password, and role are required']));
+    if (empty($data['full_name']) || empty($data['email']) || empty($data['password'])) {
+        $response->getBody()->write(json_encode(['error' => 'full_name, email, and password are required']));
         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
     }
 
-    if (!in_array($data['role'], ['admin', 'lecturer', 'student'])) {
+    // Default role is student unless an authenticated admin sets it explicitly
+    $requestedRole = $data['role'] ?? 'student';
+    $authHeader = $request->getHeaderLine('Authorization');
+    $isAdmin = false;
+
+    if ($authHeader && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        $decoded = verifyToken($matches[1]);
+        if ($decoded && $decoded->role === 'admin') {
+            $isAdmin = true;
+        }
+    }
+
+    if ($requestedRole !== 'student' && !$isAdmin) {
+        $response->getBody()->write(json_encode(['error' => 'Only an admin can create lecturer or admin accounts']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+    }
+
+    if (!in_array($requestedRole, ['admin', 'lecturer', 'student'])) {
         $response->getBody()->write(json_encode(['error' => 'role must be admin, lecturer, or student']));
         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
     }
 
+    $data['role'] = $requestedRole;
     $pdo = getDbConnection();
     $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
 
@@ -93,6 +147,12 @@ $app->put('/users/{id}', function ($request, $response, $args) {
 
 // DELETE a user
 $app->delete('/users/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $pdo = getDbConnection();
 
     $stmt = $pdo->prepare('SELECT user_id FROM users WHERE user_id = ?');
@@ -139,6 +199,14 @@ $app->get('/courses/{id}', function ($request, $response, $args) {
 $app->post('/courses', function ($request, $response) {
     $data = json_decode($request->getBody()->getContents(), true);
 
+
+
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     if (empty($data['course_code']) || empty($data['course_name']) || empty($data['lecturer_id'])) {
         $response->getBody()->write(json_encode(['error' => 'course_code, course_name, and lecturer_id are required']));
         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
@@ -168,7 +236,14 @@ $app->post('/courses', function ($request, $response) {
 });
 
 // UPDATE a course
+// UPDATE a course
 $app->put('/courses/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $data = json_decode($request->getBody()->getContents(), true);
     $pdo = getDbConnection();
 
@@ -192,7 +267,14 @@ $app->put('/courses/{id}', function ($request, $response, $args) {
 });
 
 // DELETE a course
+// DELETE a course
 $app->delete('/courses/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $pdo = getDbConnection();
 
     $stmt = $pdo->prepare('SELECT course_id FROM courses WHERE course_id = ?');
@@ -236,7 +318,14 @@ $app->get('/examinations/{id}', function ($request, $response, $args) {
 });
 
 // CREATE an examination
+// CREATE an examination
 $app->post('/examinations', function ($request, $response) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $data = json_decode($request->getBody()->getContents(), true);
 
     if (empty($data['course_id']) || empty($data['exam_title']) || empty($data['exam_date']) || empty($data['exam_time'])) {
@@ -262,7 +351,14 @@ $app->post('/examinations', function ($request, $response) {
 });
 
 // UPDATE an examination
+// UPDATE an examination
 $app->put('/examinations/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $data = json_decode($request->getBody()->getContents(), true);
     $pdo = getDbConnection();
 
@@ -286,7 +382,14 @@ $app->put('/examinations/{id}', function ($request, $response, $args) {
 });
 
 // DELETE an examination
+// DELETE an examination
 $app->delete('/examinations/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $pdo = getDbConnection();
 
     $stmt = $pdo->prepare('SELECT exam_id FROM examinations WHERE exam_id = ?');
@@ -330,7 +433,14 @@ $app->get('/results/{id}', function ($request, $response, $args) {
 });
 
 // CREATE a result
+// CREATE a result
 $app->post('/results', function ($request, $response) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $data = json_decode($request->getBody()->getContents(), true);
 
     if (empty($data['exam_id']) || empty($data['student_id']) || !isset($data['score'])) {
@@ -359,7 +469,14 @@ $app->post('/results', function ($request, $response) {
 });
 
 // UPDATE a result
+// UPDATE a result
 $app->put('/results/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $data = json_decode($request->getBody()->getContents(), true);
     $pdo = getDbConnection();
 
@@ -383,7 +500,14 @@ $app->put('/results/{id}', function ($request, $response, $args) {
 });
 
 // DELETE a result
+// DELETE a result
 $app->delete('/results/{id}', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
     $pdo = getDbConnection();
 
     $stmt = $pdo->prepare('SELECT result_id FROM results WHERE result_id = ?');
