@@ -1,7 +1,13 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
+
+
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+
 require __DIR__ . '/db.php';
 require __DIR__ . '/auth.php';
+require __DIR__ . '/email_service.php';
 
 use Slim\Factory\AppFactory;
 
@@ -379,6 +385,61 @@ $app->get('/examinations/{id}/qrcode', function ($request, $response, $args) {
     ]));
     return $response->withHeader('Content-Type', 'application/json');
 });
+
+
+// Notify a student about an exam via email (external API integration)
+$app->post('/examinations/{id}/notify', function ($request, $response, $args) {
+    $auth = requireAuth($request, ['admin', 'lecturer']);
+    if (isset($auth['error'])) {
+        $response->getBody()->write(json_encode(['error' => $auth['error']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($auth['status']);
+    }
+
+    $data = json_decode($request->getBody()->getContents(), true);
+
+    if (empty($data['student_id'])) {
+        $response->getBody()->write(json_encode(['error' => 'student_id is required']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+
+    $pdo = getDbConnection();
+
+    $examStmt = $pdo->prepare('SELECT * FROM examinations WHERE exam_id = ?');
+    $examStmt->execute([$args['id']]);
+    $exam = $examStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$exam) {
+        $response->getBody()->write(json_encode(['error' => 'Examination not found']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+    }
+
+    $studentStmt = $pdo->prepare('SELECT * FROM users WHERE user_id = ? AND role = "student"');
+    $studentStmt->execute([$data['student_id']]);
+    $student = $studentStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$student) {
+        $response->getBody()->write(json_encode(['error' => 'Student not found']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+    }
+
+    $result = sendExamNotificationEmail(
+        $student['email'],
+        $student['full_name'],
+        $exam['exam_title'],
+        $exam['exam_date'],
+        $exam['exam_time'],
+        $exam['venue']
+    );
+
+    if (!$result['success']) {
+        $response->getBody()->write(json_encode(['error' => 'Failed to send email', 'details' => $result['response']]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+    }
+
+    $response->getBody()->write(json_encode(['message' => 'Notification email sent successfully']));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
 // CREATE an examination
 // CREATE an examination
 $app->post('/examinations', function ($request, $response) {
